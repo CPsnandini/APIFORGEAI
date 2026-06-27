@@ -3,6 +3,7 @@ from config import Config
 from extensions import db, jwt
 from auth_routes import auth_bp
 from tester_routes import tester_bp
+from ai_routes import ai_bp
 
 
 def create_app():
@@ -14,6 +15,7 @@ def create_app():
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(tester_bp)
+    app.register_blueprint(ai_bp)
 
     with app.app_context():
         db.create_all()
