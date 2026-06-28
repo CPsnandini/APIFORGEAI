@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>APIForge AI</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #171a23; --border: #2a2e3a;
+    --text: #e6e8ee; --muted: #8b909e; --accent: #5b8cff;
+    --good: #3fb950; --bad: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 18px; margin: 0; }
+  header h1 span { color: var(--accent); }
+  #logoutBtn { display: none; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .card h2 { margin-top: 0; font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, select, textarea, button { font-family: inherit; font-size: 14px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; background: #0f1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+  textarea { min-height: 70px; resize: vertical; }
+  button { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; margin-top: 10px; margin-right: 6px; }
+  button.secondary { background: transparent; color: var(--accent); }
+  button.danger { background: transparent; color: var(--bad); border-color: var(--bad); }
+  button:hover { opacity: 0.85; }
+  pre { background: #0b0d12; border: 1px solid var(--border); border-radius: 6px; padding: 12px; white-space: pre-wrap; word-break: break-word; font-size: 13px; max-height: 320px; overflow: auto; }
+  .endpoint-row { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .endpoint-row .meta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  #authSection, #appSection { display: none; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>API<span>Forge</span> AI</h1>
+  <button id="logoutBtn" class="secondary">Log out</button>
+</header>
+
+<main>
+  <section id="authSection" class="card">
+    <h2 id="authTitle">Log in</h2>
+    <label>Username</label>
+    <input id="authUsername" placeholder="testuser" />
+    <label>Password</label>
+    <input id="authPassword" type="password" placeholder="••••••••" />
+    <div>
+      <button id="authSubmitBtn">Log in</button>
+      <button id="authToggleBtn" class="secondary">Need an account? Sign up</button>
+    </div>
+    <p id="authMsg" class="meta" style="color: var(--bad); margin-top: 8px;"></p>
+  </section>
+
+  <section id="appSection">
+    <div class="card">
+      <h2>Send a test request</h2>
+      <div class="row">
+        <div style="flex: 0 0 110px;">
+          <label>Method</label>
+          <select id="sendMethod">
+            <option>GET</option><option>POST</option><option>PUT</option>
+            <option>PATCH</option><option>DELETE</option>
+          </select>
+        </div>
+        <div>
+          <label>URL</label>
+          <input id="sendUrl" placeholder="https://api.github.com/users/octocat" />
+        </div>
+      </div>
+      <label>Headers (JSON, optional)</label>
+      <textarea id="sendHeaders" placeholder='{"Content-Type": "application/json"}'></textarea>
+      <label>Body (JSON, optional)</label>
+      <textarea id="sendBody" placeholder='{"key": "value"}'></textarea>
+      <button id="sendBtn">Send</button>
+      <button id="saveBtn" class="secondary">Save as endpoint</button>
+      <label>Name (only needed to save)</label>
+      <input id="saveName" placeholder="GitHub octocat profile" />
+      <pre id="sendResult" class="hidden"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Saved endpoints</h2>
+      <div id="endpointList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Explain an HTTP error</h2>
+      <div class="row">
+        <div style="flex: 0 0 120px;">
+          <label>Status code</label>
+          <input id="explainStatus" placeholder="404" />
+        </div>
+        <div>
+          <label>Response body (optional)</label>
+          <input id="explainBody" placeholder='{"error": "not found"}' />
+        </div>
+      </div>
+      <button id="explainBtn">Explain</button>
+      <pre id="explainResult" class="hidden"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Recent history</h2>
+      <button id="refreshHistoryBtn" class="secondary">Refresh</button>
+      <pre id="historyResult"></pre>
+    </div>
+  </section>
+</main>
+
+<script>
+const API = "";
+let isSignup = false;
+
+function getToken() { return localStorage.getItem("apiforge_token"); }
+function setToken(t) { localStorage.setItem("apiforge_token", t); }
+function clearToken() { localStorage.removeItem("apiforge_token"); }
+function authHeaders() { return { "Authorization": "Bearer " + getToken(), "Content-Type": "application/json" }; }
+
+function showApp() {
+  document.getElementById("authSection").style.display = "none";
+  document.getElementById("appSection").style.display = "block";
+  document.getElementById("logoutBtn").style.display = "inline-block";
+  loadEndpoints(); loadHistory();
+}
+function showAuth() {
+  document.getElementById("authSection").style.display = "block";
+  document.getElementById("appSection").style.display = "none";
+  document.getElementById("logoutBtn").style.display = "none";
+}
+
+document.getElementById("authToggleBtn").onclick = () => {
+  isSignup = !isSignup;
+  document.getElementById("authTitle").textContent = isSignup ? "Sign up" : "Log in";
+  document.getElementById("authSubmitBtn").textContent = isSignup ? "Sign up" : "Log in";
+  document.getElementById("authToggleBtn").textContent = isSignup ? "Already have an account? Log in" : "Need an account? Sign up";
+};
+
+document.getElementById("authSubmitBtn").onclick = async () => {
+  const username = document.getElementById("authUsername").value.trim();
+  const password = document.getElementById("authPassword").value;
+  const msgEl = document.getElementById("authMsg");
+  msgEl.textContent = "";
+  if (!username || !password) { msgEl.textContent = "Username and password are required."; return; }
+
+  try {
+    if (isSignup) {
+      const r = await fetch(`${API}/auth/signup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+      const data = await r.json();
+      if (!r.ok) { msgEl.textContent = data.error || "Signup failed"; return; }
+    }
+    const r2 = await fetch(`${API}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+    const data2 = await r2.json();
+    if (!r2.ok) { msgEl.textContent = data2.error || "Login failed"; return; }
+    setToken(data2.access_token);
+    showApp();
+  } catch (e) { msgEl.textContent = "Network error: " + e.message; }
+};
+
+document.getElementById("logoutBtn").onclick = () => { clearToken(); showAuth(); };
+
+document.getElementById("sendBtn").onclick = async () => {
+  const resultEl = document.getElementById("sendResult");
+  resultEl.classList.remove("hidden");
+  resultEl.textContent = "Sending...";
+  let headers = {}, body = null;
+  try {
+    const h = document.getElementById("sendHeaders").value.trim();
+    const b = document.getElementById("sendBody").value.trim();
+    if (h) headers = JSON.parse(h);
+    if (b) body = JSON.parse(b);
+  } catch (e) { resultEl.textContent = "Invalid JSON in headers or body: " + e.message; return; }
+
+  const payload = { method: document.getElementById("sendMethod").value, url: document.getElementById("sendUrl").value, headers, body };
+  try {
+    const r = await fetch(`${API}/api/send`, { method: "POST", headers: authHeaders(), body: JSON.stringify(payload) });
+    const data = await r.json();
+    resultEl.textContent = JSON.stringify(data, null, 2);
+    loadHistory();
+  } catch (e) { resultEl.textContent = "Network error: " + e.message; }
+};
+
+document.getElementById("saveBtn").onclick = async () => {
+  const name = document.getElementById("saveName").value.trim();
+  if (!name) { alert("Give this endpoint a name first."); return; }
+  let headers = {}, body = null;
+  try {
+    const h = document.getElementById("sendHeaders").value.trim();
+    const b = document.getElementById("sendBody").value.trim();
+    if (h) headers = JSON.parse(h);
+    if (b) body = JSON.parse(b);
+  } catch (e) { alert("Invalid JSON in headers or body: " + e.message); return; }
+
+  const payload = { name, method: document.getElementById("sendMethod").value, url: document.getElementById("sendUrl").value, headers, body };
+  const r = await fetch(`${API}/api/endpoints`, { method: "POST", headers: authHeaders(), body: JSON.stringify(payload) });
+  const data = await r.json();
+  if (!r.ok) { alert(data.error || "Save failed"); return; }
+  loadEndpoints();
+};
+
+async function loadEndpoints() {
+  const r = await fetch(`${API}/api/endpoints`, { headers: authHeaders() });
+  const list = await r.json();
+  const container = document.getElementById("endpointList");
+  if (!Array.isArray(list) || list.length === 0) { container.innerHTML = '<p class="meta">No saved endpoints yet.</p>'; return; }
+  container.innerHTML = list.map(e => `
+    <div class="endpoint-row">
+      <div class="meta"><strong>${e.method}</strong> ${e.name}</div>
+      <div class="meta" style="word-break: break-all;">${e.url}</div>
+      <button onclick="runEndpoint(${e.id})" class="secondary">Run</button>
+      <button onclick="genDocs(${e.id})" class="secondary">Generate Docs</button>
+      <button onclick="genTests(${e.id})" class="secondary">Generate Tests</button>
+      <button onclick="deleteEndpoint(${e.id})" class="danger">Delete</button>
+      <pre id="ep-result-${e.id}" class="hidden"></pre>
+    </div>
+  `).join("");
+}
+
+async function runEndpoint(id) {
+  const r = await fetch(`${API}/api/endpoints/${id}`, { headers: authHeaders() });
+  const ep = await r.json();
+  const r2 = await fetch(`${API}/api/send`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ method: ep.method, url: ep.url, headers: ep.headers, body: ep.body }) });
+  const data = await r2.json();
+  const out = document.getElementById(`ep-result-${id}`);
+  out.classList.remove("hidden");
+  out.textContent = JSON.stringify(data, null, 2);
+  loadHistory();
+}
+
+async function genDocs(id) {
+  const out = document.getElementById(`ep-result-${id}`);
+  out.classList.remove("hidden"); out.textContent = "Asking Gemini for documentation...";
+  const r = await fetch(`${API}/ai/generate-docs/${id}`, { method: "POST", headers: authHeaders() });
+  const data = await r.json();
+  out.textContent = data.documentation || JSON.stringify(data, null, 2);
+}
+
+async function genTests(id) {
+  const out = document.getElementById(`ep-result-${id}`);
+  out.classList.remove("hidden"); out.textContent = "Asking Gemini for test cases...";
+  const r = await fetch(`${API}/ai/generate-tests/${id}`, { method: "POST", headers: authHeaders() });
+  const data = await r.json();
+  out.textContent = JSON.stringify(data.test_cases || data, null, 2);
+}
+
+async function deleteEndpoint(id) {
+  if (!confirm("Delete this saved endpoint?")) return;
+  await fetch(`${API}/api/endpoints/${id}`, { method: "DELETE", headers: authHeaders() });
+  loadEndpoints();
+}
+
+document.getElementById("explainBtn").onclick = async () => {
+  const resultEl = document.getElementById("explainResult");
+  resultEl.classList.remove("hidden"); resultEl.textContent = "Asking Gemini...";
+  const status_code = parseInt(document.getElementById("explainStatus").value, 10);
+  const response_body = document.getElementById("explainBody").value;
+  const r = await fetch(`${API}/ai/explain-error`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ status_code, response_body }) });
+  const data = await r.json();
+  resultEl.textContent = data.explanation || JSON.stringify(data, null, 2);
+};
+
+async function loadHistory() {
+  const r = await fetch(`${API}/api/history`, { headers: authHeaders() });
+  const data = await r.json();
+  document.getElementById("historyResult").textContent = JSON.stringify(data, null, 2);
+}
+document.getElementById("refreshHistoryBtn").onclick = loadHistory;
+
+if (getToken()) { showApp(); } else { showAuth(); }
+</script>
+</body>
+</html>
