@@ -18,26 +18,7 @@ documentation generation, HTTP error explanation, and automated test case genera
 - Plain-language explanations of HTTP error codes
 - AI-generated test cases for any saved endpoint
 
-## Local setup
-\`\`\`bash
-git clone https://github.com/your-username/APIForgeAI.git
-cd APIForgeAI
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-\`\`\`
 
-Create a `.env` file:
-\`\`\`
-SECRET_KEY=your-random-secret
-JWT_SECRET_KEY=your-random-jwt-secret
-GEMINI_API_KEY=your-gemini-api-key
-\`\`\`
-
-\`\`\`bash
-python app.py
-\`\`\`
-Visit `http://127.0.0.1:5000`.
 
 ## API Overview
 | Route | Method | Description |
